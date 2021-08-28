@@ -1,3 +1,4 @@
+const os = require('os');
 const delay = require('delay');
 const { run } = require('./run');
 const fetch = require('node-fetch');
@@ -12,6 +13,15 @@ const every = require('every');
 const pe = new PrettyError();
 const faker = require('faker');
 const SSID = process.argv[2];
+const interface = process.argv[3] || (os.platform() === 'darwin' ? 'en0' : 'wlan0');
+const spoofCommands = os.platform() === 'darwin' ? [
+    `./node_modules/.bin/spoof randomize ${interface}`,
+    `networksetup -setairportnetwork ${interface} "${SSID}"`
+] : [
+    `ifconfig ${interface} down`,
+    `./node_modules/.bin/spoof randomize ${interface}`,
+    `ifconfig ${interface} up`
+];
 
 let renewalRunning = false;
 if (process.getuid() !== 0) {
@@ -19,11 +29,8 @@ if (process.getuid() !== 0) {
     return;
 }
 
-async function getAuthUrl() {
-    //await run('pkill "Captive Network Assistant.app"').catch(e => "ignore");
-    return await fetch('http://www.wifi69.com', { redirect: 'manual' })
-        .then(resp => resp.headers.get('location'));
-}
+const getAuthUrl = () => fetch('http://www.wifi69.com', { redirect: 'manual' })
+    .then(resp => resp.headers.get('location'))
 
 //const isNetwork = async () => !(await getAuthUrl().catch(e => "FAILED"));
 const isConnected = async () => !(await getAuthUrl().catch(e => "FAILED"));
@@ -31,26 +38,30 @@ const isConnected = async () => !(await getAuthUrl().catch(e => "FAILED"));
 const toRGB = (hex) => hex === 'green' ? [0, 255, 0] : color(hex).array();
 
 const spoof = async () => {
-    console.log('Spoof required, spoofing... ☁')
+    for (const cmd of spoofCommands) {
+        await run(cmd);
+    }
+}
 
-    // spoof mac
-    await run('./node_modules/.bin/spoof randomize en0');
-
-    // reconnect wifi (macOS ONLY)
-    await run(`networksetup -setairportnetwork en0 "${SSID}"`);
-
-    // wait for network to come back up online
-    let redirectUrl = null
+async function waitForNetwork() {
+    let redirectUrl = null;
     while (!redirectUrl) {
         try {
             redirectUrl = await getAuthUrl();
         } catch (ex) {
             console.log('Network appears to be down, retrying in a second');
         }
+
+        // MACOS only
+        if (os.platform() === 'darwin') {
+            await run('pkill "Captive Network Assistant.app"').catch(e => "ignore");
+        }
+
         await delay(1000);
     }
 
     console.log('Network appears to be up again, going to attempt a renewal...');
+    return redirectUrl;
 }
 
 const giveMeWifi = async () => {
@@ -92,6 +103,10 @@ const giveMeWifi = async () => {
                 .then(x => x.arrayBuffer())
                 .then(x => writeFilePromise('current.png', Buffer.from(x)));
             console.log('Downloaded captcha');
+
+            // Store some data for futur dev
+            await run(`mkdir -p .tmp`);
+            await run(`cp current.png .tmp/captcha-${Date.now()}.png`);
 
             // color target characters white
             await replaceColor({
@@ -140,7 +155,11 @@ const giveMeWifi = async () => {
 
             // trial expired. mac spoof needed
             if (statusCode === -102) {
+                console.log('Spoof required, spoofing... ☁')
                 await spoof();
+
+                // wait for network to come back up online
+                await waitForNetwork();
             }
 
             authenticated = statusCode === 0;

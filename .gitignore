@@ -2,3 +2,4 @@ node_modules/
 current.png
 current_proc.png
 .idea/
+.tmp/

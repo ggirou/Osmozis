@@ -1,5 +1,4 @@
 const delay = require('delay');
-const { getAuthUrl } = require('./getAuthUrl');
 const { run } = require('./run');
 const fetch = require('node-fetch');
 const queryString = require('querystring');
@@ -12,6 +11,7 @@ const PrettyError = require('pretty-error');
 const every = require('every');
 const pe = new PrettyError();
 const faker = require('faker');
+const SSID = process.argv[2];
 
 let renewalRunning = false;
 if (process.getuid() !== 0) {
@@ -19,16 +19,25 @@ if (process.getuid() !== 0) {
     return;
 }
 
+async function getAuthUrl() {
+    //await run('pkill "Captive Network Assistant.app"').catch(e => "ignore");
+    return await fetch('http://www.wifi69.com', { redirect: 'manual' })
+        .then(resp => resp.headers.get('location'));
+}
+
+//const isNetwork = async () => !(await getAuthUrl().catch(e => "FAILED"));
+const isConnected = async () => !(await getAuthUrl().catch(e => "FAILED"));
+
 const toRGB = (hex) => hex === 'green' ? [0, 255, 0] : color(hex).array();
 
 const spoof = async () => {
-    console.log ('Spoof required, spoofing... ☁')
+    console.log('Spoof required, spoofing... ☁')
 
     // spoof mac
     await run('./node_modules/.bin/spoof randomize en0');
 
     // reconnect wifi (macOS ONLY)
-    await run('networksetup -setairportnetwork en0 "Hotzone 14 - Le Royannais"');
+    await run(`networksetup -setairportnetwork en0 "${SSID}"`);
 
     // wait for network to come back up online
     let redirectUrl = null
@@ -48,7 +57,7 @@ const giveMeWifi = async () => {
     renewalRunning = true;
 
     // get sess token
-    let redirectUrl = await getAuthUrl();
+    let redirectUrl = await getAuthUrl().catch(e => "FAILED");
 
     if (!redirectUrl) {
         renewalRunning = false;
@@ -63,23 +72,26 @@ const giveMeWifi = async () => {
         try {
             redirectUrl = await getAuthUrl()
             const token = new URL(redirectUrl).searchParams.get('key');
+            console.log('Token:', token);
 
             // grab current color
-            const targetColor = await fetch('https://auth.osmoziswifi.com/api/auth-portal/v1/captchas', {
+            const captchas = await fetch('https://auth.osmoziswifi.com/api/auth-portal/v1/captchas', {
                 headers: {
                     'X-Session-Token': token,
                 },
                 method: 'POST',
             })
-                .then(resp => resp.json())
-                .then(json => json.color);
+                .then(resp => resp.json());
+            console.log('Captcha:', captchas);
+
+            const targetColor = captchas.color;
+            console.log('Captcha color:', targetColor);
 
             // download captcha
-            await fetch(`https://auth.osmoziswifi.com/api/auth-portal/v1/captchas/current?v=1563187435355&session-token=${token}`)
+            await fetch(`https://auth.osmoziswifi.com/api/auth-portal/v1/captchas/current?v=${Date.now()}&session-token=${token}`)
                 .then(x => x.arrayBuffer())
                 .then(x => writeFilePromise('current.png', Buffer.from(x)));
-
-            console.log('Captcha color:', targetColor);
+            console.log('Downloaded captcha');
 
             // color target characters white
             await replaceColor({
@@ -141,7 +153,7 @@ const giveMeWifi = async () => {
         }
     }
 
-    console.log("We're in 😎✌️");
+    console.log("We're in 😎");
     renewalRunning = false;
 };
 

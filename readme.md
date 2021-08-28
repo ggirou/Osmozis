@@ -7,3 +7,11 @@ Requires tesseract to be installed.
 
 Currently only runs on MacOS but with some modifications, should be able to run everywhere.
 WiFi name has been hardcoded because I'm too lazy to get it from an input arg, change it yourself.
+
+# Installation
+
+    npm install
+
+# Usage
+
+    sudo node index.js "Wifi SSID"

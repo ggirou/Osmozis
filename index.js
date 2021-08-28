@@ -183,5 +183,6 @@ const go = () => {
     }
 }
 
+console.log("Starting...");
 setInterval(() => go(), 1000);
 go();

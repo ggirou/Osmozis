@@ -5,14 +5,10 @@ const cp = require('child_process');
 const chalk = require('chalk');
 
 exports.run = (command, options = {}) => {
-    // probably don't pass too advanced commands into this function, because this 'argument parser' is kinda dumb
-    const args = command.split(' ');
-    const cmd = args.splice(0, 1)[0];
-
     console.log(chalk`$ {dim ${command}}`);
     return new Promise((resolve, reject) => {
         let out = '';
-        const child = cp.spawn(cmd, args, {
+        const child = cp.spawn("bash", ["-c", command], {
             // stdio: 'inherit',
             // shell: true,
             ...options

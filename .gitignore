@@ -1,5 +1,6 @@
 node_modules/
 current.png
-current_proc.png
+current*.png
+lat.traineddata
 .idea/
 .tmp/

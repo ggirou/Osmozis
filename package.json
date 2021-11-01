@@ -17,9 +17,7 @@
     "faker": "^4.1.0",
     "jimp": "^0.6.4",
     "node-fetch": "^2.6.0",
-    "pretty-error": "^2.1.1",
-    "query-string": "^6.8.1",
-    "replace-color": "^2.1.0",
-    "spoof": "^2.0.1"
+    "node-png": "^0.4.3",
+    "pretty-error": "^2.1.1"
   }
 }

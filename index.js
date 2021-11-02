@@ -14,24 +14,26 @@ const osmozis = new Osmozis();
 const SSID = process.argv[2];
 const interface = process.argv[3] || (os.platform() === 'darwin' ? 'en0' : 'wlan0');
 
-const spoofCommands = os.platform() === 'darwin' ? () => [
-    `ifconfig ${interface} ether ${randomMacAddress()}`,
-    `ifconfig ${interface} down`,
-    `ifconfig ${interface} up`,
-    `networksetup -setairportnetwork ${interface} "${SSID}"`
-] : () => [
-    `iwconfig ${interface} essid off`,
-    `ifconfig ${interface} down`,
-    `ifconfig ${interface} hw ether ${randomMacAddress()}`,
-    `ifconfig ${interface} up`,
-    `iwconfig ${interface} essid "${SSID}"`,
-];
+const spoofCommands = process.env.SPOOF_CMD ?
+    () => [process.env.SPOOF_CMD]
+    : os.platform() === 'darwin' ? () => [
+        `ifconfig ${interface} ether ${randomMacAddress()}`,
+        `ifconfig ${interface} down`,
+        `ifconfig ${interface} up`,
+        `networksetup -setairportnetwork ${interface} "${SSID}"`
+    ] : () => [
+        `iwconfig ${interface} essid off`,
+        `ifconfig ${interface} down`,
+        `ifconfig ${interface} hw ether ${randomMacAddress()}`,
+        `ifconfig ${interface} up`,
+        `iwconfig ${interface} essid "${SSID}"`,
+    ];
 
 // Mac address first byte must be even
 const randomMacAddress = () => [~1, ~0, ~0, ~0, ~0, ~0].map(i => (Math.floor(Math.random() * 255) & i).toString(16).padStart(2, '0')).join(":");
 
 let renewalRunning = false;
-if (process.getuid() !== 0) {
+if (!process.env.SPOOF_CMD && process.getuid() !== 0) {
     console.log('must be ran as root (required for spoof)');
     return;
 }

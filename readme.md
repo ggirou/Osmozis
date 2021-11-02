@@ -10,7 +10,7 @@ WiFi name has been hardcoded because I'm too lazy to get it from an input arg, c
 
 # Installation
 
-    sudo apt-get install tesseract-ocr
+    sudo apt-get install -y tesseract-ocr tesseract-ocr-lat
     npm install
 
 # Usage
@@ -32,4 +32,4 @@ WiFi name has been hardcoded because I'm too lazy to get it from an input arg, c
 
 ## Tesseract installation on Raspberry Pi OS
 
-    sudo apt-get install tesseract-ocr
+    sudo apt-get install -y tesseract-ocr tesseract-ocr-lat

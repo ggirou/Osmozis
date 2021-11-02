@@ -3,26 +3,27 @@ const { PNG } = require('pngjs');
 const color = require('color');
 const toRGB = (hex) => hex === 'green' ? [0, 255, 0] : color(hex).array();
 
-const { createWorker } = require('tesseract.js');
+//const { createWorker } = require('tesseract.js');
+const { run } = require('./run');
 
 class OCR {
   constructor() {
-    this.worker = createWorker({
-      //  logger: m => console.log(m)
-    });
+    // this.worker = createWorker({
+    //   //  logger: m => console.log(m)
+    // });
   }
 
   async init() {
-    await this.worker.load();
-    await this.worker.loadLanguage('lat');
-    await this.worker.initialize('lat');
-    await this.worker.setParameters({
-      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-    });
+    // await this.worker.load();
+    // await this.worker.loadLanguage('lat');
+    // await this.worker.initialize('lat');
+    // await this.worker.setParameters({
+    //   tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    // });
   }
 
   terminate() {
-    return this.worker.terminate();
+    // return this.worker.terminate();
   }
 
   async getCode(targetColor, from = 'current.png', tmp = 'current_proc.png') {
@@ -53,7 +54,11 @@ class OCR {
         });
     });
 
-    const { data: { text } } = await this.worker.recognize(tmp, 'lat');
+    const text = await run(`tesseract ${tmp} - --dpi 72 --psm 7 -l script/Latin -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ`); // --dpi 72 --psm 7 -l script/Latin 
+    console.log("cli", text);
+
+    // const { data: { text } } = await this.worker.recognize(tmp, 'lat');
+    // console.log("js", text);
 
     return text.replace(/[^a-zA-Z]+/g, '').toUpperCase();
   }

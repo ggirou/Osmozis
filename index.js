@@ -17,14 +17,15 @@ const spoofCommands = os.platform() === 'darwin' ? () => [
     `ifconfig ${interface} ether ${randomMacAddress()}`,
     `networksetup -setairportnetwork ${interface} "${SSID}"`
 ] : () => [
-    `iwconfig ${interface} off`,
+    `iwconfig ${interface} essid off`,
     `ifconfig ${interface} down`,
     `ifconfig ${interface} hw ether ${randomMacAddress()}`,
     `ifconfig ${interface} up`,
     `iwconfig ${interface} essid "${SSID}"`,
 ];
 
-const randomMacAddress = () => "XX:XX:XX:XX:XX:XX".replace(/X/g, () => { return "0123456789ABCDEF".charAt(Math.floor(Math.random() * 16)) });
+// Mac address first byte must be even
+const randomMacAddress = () => [~1, ~0, ~0, ~0, ~0, ~0].map(i => (Math.floor(Math.random() * 255) & i).toString(16).padStart(2, '0')).join(":");
 
 let renewalRunning = false;
 if (process.getuid() !== 0) {

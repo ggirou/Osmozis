@@ -82,6 +82,8 @@ const giveMeWifi = async () => {
     }
 
     console.log('Block detected. Attempting renewal.')
+    console.log('Spoofing...')
+    await spoof();
 
     let authenticated = false;
 
@@ -111,7 +113,7 @@ const giveMeWifi = async () => {
 
             // trial expired. mac spoof needed
             if (statusCode === -102) {
-                console.log('Spoof required, spoofing... ☁')
+                console.log('Spoof required, spoofing...')
                 await spoof();
             }
 
@@ -131,7 +133,7 @@ const giveMeWifi = async () => {
 
 const go = async () => {
     if (!renewalRunning) {
-        giveMeWifi()
+        await giveMeWifi()
             .catch(x => console.error(pe.render(x)));
     }
 }
@@ -141,11 +143,11 @@ async function main() {
 
     await ocr.init();
 
-    console.log('Initial Spoof, spoofing... ☁')
-    await spoof();
+    //console.log('Initial Spoof, spoofing...')
+    //await spoof();
 
-    setInterval(() => go(), 1000);
-    go();
+    setInterval(async () => await go(), 1000);
+    await go();
 }
 
 main();

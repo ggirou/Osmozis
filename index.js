@@ -151,13 +151,22 @@ const giveMeWifi = async () => {
 };
 
 const go = async () => {
-    await ocr.init();
     if (!renewalRunning) {
         giveMeWifi()
             .catch(x => console.error(pe.render(x)));
     }
 }
 
-console.log("Starting...");
-setInterval(() => go(), 1000);
-go();
+async function main() {
+    console.log("Starting...");
+
+    await ocr.init();
+
+    console.log('Initial Spoof, spoofing... ☁')
+    await spoof();
+
+    setInterval(() => go(), 1000);
+    go();
+}
+
+main();

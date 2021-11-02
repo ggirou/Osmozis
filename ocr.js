@@ -54,8 +54,8 @@ class OCR {
         });
     });
 
-    const text = await run(`tesseract ${tmp} - --dpi 72 --psm 7 -l script/Latin -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ`); // --dpi 72 --psm 7 -l script/Latin 
-    console.log("cli", text);
+    const text = await run(`tesseract ${tmp} - --dpi 72 --psm 7 -l lat -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ`); // --dpi 72 --psm 7 -l script/Latin
+    //console.log("cli", text);
 
     // const { data: { text } } = await this.worker.recognize(tmp, 'lat');
     // console.log("js", text);
@@ -65,6 +65,8 @@ class OCR {
 }
 
 module.exports = OCR;
+
+return;
 
 async function main() {
   const ocr = await new OCR();

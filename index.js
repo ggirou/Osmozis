@@ -1,6 +1,7 @@
 const os = require('os');
 const delay = require('delay');
 const { run } = require('./run');
+const Osmozis = require('./osmozis');
 const OCR = require('./ocr');
 const fetch = require('node-fetch');
 const { writeFile } = require('fs');
@@ -8,13 +9,15 @@ const { promisify } = require('util');
 const writeFilePromise = promisify(writeFile);
 const PrettyError = require('pretty-error');
 const pe = new PrettyError();
-const faker = require('faker');
 const ocr = new OCR();
+const osmozis = new Osmozis();
 const SSID = process.argv[2];
 const interface = process.argv[3] || (os.platform() === 'darwin' ? 'en0' : 'wlan0');
 
 const spoofCommands = os.platform() === 'darwin' ? () => [
     `ifconfig ${interface} ether ${randomMacAddress()}`,
+    `ifconfig ${interface} down`,
+    `ifconfig ${interface} up`,
     `networksetup -setairportnetwork ${interface} "${SSID}"`
 ] : () => [
     `iwconfig ${interface} essid off`,
@@ -33,21 +36,23 @@ if (process.getuid() !== 0) {
     return;
 }
 
-const getAuthUrl = () => fetch('http://www.wifi69.com', { redirect: 'manual' })
-    .then(resp => resp.headers.get('location'))
-
-//const isNetwork = async () => !(await getAuthUrl().catch(e => "FAILED"));
-const isConnected = async () => !(await getAuthUrl().catch(e => "FAILED"));
-
 const spoof = async () => {
     await run(spoofCommands().join(" && "));
+
+    // wait for network to come back up online
+    await waitForNetwork();
 }
 
 async function waitForNetwork() {
-    let redirectUrl = null;
-    while (!redirectUrl) {
+    let resp = 0;
+    let wait = 1000;
+    while (!resp) {
         try {
-            redirectUrl = await getAuthUrl();
+            await fetch('http://www.wifi69.com', { redirect: 'manual' });
+            resp = await fetch('http://detectportal.firefox.com/canonical.html', { redirect: 'manual' });
+            //console.log(resp);
+            //status = resp.status;
+            return resp.status == 200;
         } catch (ex) {
             console.log('Network appears to be down, retrying in a second');
         }
@@ -57,18 +62,19 @@ async function waitForNetwork() {
             await run('pkill "Captive Network Assistant.app"').catch(e => "ignore");
         }
 
-        await delay(1000);
+        await delay(wait);
+        wait = wait * 2;
     }
 
     console.log('Network appears to be up again, going to attempt a renewal...');
-    return redirectUrl;
+    return resp.status == 200;
 }
 
 const giveMeWifi = async () => {
     renewalRunning = true;
 
     // get sess token
-    let redirectUrl = await getAuthUrl().catch(e => "FAILED");
+    let redirectUrl = await osmozis.getAuthUrl().catch(e => "FAILED");
 
     if (!redirectUrl) {
         renewalRunning = false;
@@ -81,59 +87,32 @@ const giveMeWifi = async () => {
 
     while (!authenticated) {
         try {
-            redirectUrl = await getAuthUrl()
-            const token = new URL(redirectUrl).searchParams.get('key');
-            console.log('Token:', token);
+            await osmozis.init();
 
             // grab current color
-            const captchas = await fetch('https://auth.osmoziswifi.com/api/auth-portal/v1/captchas', {
-                headers: {
-                    'X-Session-Token': token,
-                },
-                method: 'POST',
-            })
-                .then(resp => resp.json());
-            console.log('Captcha:', captchas);
-
-            const targetColor = captchas.color;
+            const targetColor = await osmozis.getTargetColor();
             console.log('Captcha color:', targetColor);
 
             // download captcha
-            await fetch(`https://auth.osmoziswifi.com/api/auth-portal/v1/captchas/current?v=${Date.now()}&session-token=${token}`)
-                .then(x => x.arrayBuffer())
+            await osmozis.getCaptcha()
                 .then(x => writeFilePromise('current.png', Buffer.from(x)));
             console.log('Downloaded captcha');
 
             // Store some data for futur dev
             await run(`mkdir -p .tmp`);
             await run(`cp current.png .tmp/captcha-${Date.now()}.png`);
-            
+
             const code = await ocr.getCode(targetColor, "current.png");
             console.log('code: ' + code);
 
             // send challenge
-            const { statusCode } = await fetch('https://auth.osmoziswifi.com/api/auth-portal/v1/authentications', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-Session-Token': token,
-                },
-                body: JSON.stringify({
-                    'trial_auth': {
-                        'email': faker.internet.email(),
-                        'captchaCode': code
-                    }
-                }),
-            }).then(a => a.json());
+            const statusCode = await osmozis.authenticate(code);
+            console.log('Status code:', statusCode);
 
             // trial expired. mac spoof needed
             if (statusCode === -102) {
                 console.log('Spoof required, spoofing... ☁')
                 await spoof();
-
-                // wait for network to come back up online
-                await waitForNetwork();
             }
 
             authenticated = statusCode === 0;
@@ -142,11 +121,11 @@ const giveMeWifi = async () => {
                 console.log('Failure, retrying. 😭🔄')
             }
         } catch (ex) {
-            console.log(`Failure (${ex.message}), retrying.`);
+            console.log(`Failure: (${ex.message}), retrying.`); //  ex.stack .split("\n")[1]
         }
     }
 
-    console.log("We're in 😎");
+    console.log("We're in 😎", new Date());
     renewalRunning = false;
 };
 

@@ -20,7 +20,7 @@ exports.run = (command, options = {}) => {
 
         child.on('close', (code) => {
             if (code !== 0) {
-                reject(new Error(`Process ${command} exited with code ${code}`));
+                reject(new Error(`Process ${command} exited with code ${code}: ${out}`));
             } else {
                 resolve(out);
             }

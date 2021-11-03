@@ -20,6 +20,7 @@ const spoofCommands = process.env.SPOOF_CMD ?
         `ifconfig ${interface} ether ${randomMacAddress()}`,
         `ifconfig ${interface} down`,
         `ifconfig ${interface} up`,
+        `sleep 5`,
         `networksetup -setairportnetwork ${interface} "${SSID}"`
     ] : () => [
         `iwconfig ${interface} essid off`,
@@ -32,6 +33,7 @@ const spoofCommands = process.env.SPOOF_CMD ?
 // Mac address first byte must be even
 const randomMacAddress = () => [~1, ~0, ~0, ~0, ~0, ~0].map(i => (Math.floor(Math.random() * 255) & i).toString(16).padStart(2, '0')).join(":");
 
+let connected = false;
 let renewalRunning = false;
 if (!process.env.SPOOF_CMD && process.getuid() !== 0) {
     console.log('must be ran as root (required for spoof)');
@@ -56,7 +58,7 @@ async function waitForNetwork() {
             //status = resp.status;
             return resp.status == 200;
         } catch (ex) {
-            console.log('Network appears to be down, retrying in a second');
+            console.log(`Network appears to be down, retrying in ${wait / 1000} second(s)`);
         }
 
         // MACOS only
@@ -73,17 +75,6 @@ async function waitForNetwork() {
 }
 
 const giveMeWifi = async () => {
-    renewalRunning = true;
-
-    // get sess token
-    let redirectUrl = await osmozis.getAuthUrl().catch(e => "FAILED");
-
-    if (!redirectUrl) {
-        renewalRunning = false;
-        return;
-    }
-
-    console.log('Block detected. Attempting renewal.')
     console.log('Spoofing...')
     await spoof();
 
@@ -91,6 +82,7 @@ const giveMeWifi = async () => {
 
     while (!authenticated) {
         try {
+            console.log('Init token');
             await osmozis.init();
 
             // grab current color
@@ -130,13 +122,29 @@ const giveMeWifi = async () => {
     }
 
     console.log("We're in 😎", new Date());
-    renewalRunning = false;
 };
 
 const go = async () => {
     if (!renewalRunning) {
-        await giveMeWifi()
-            .catch(x => console.error(pe.render(x)));
+        renewalRunning = true;
+
+        try {
+            if (await osmozis.isConnected()) {
+                if (!connected) console.log("Already connected");
+                process.stdout.write(".");
+                connected = true;
+                return;
+            }
+
+            console.log('Block detected. Attempting renewal.')
+            connected = false;
+            await giveMeWifi();
+        } catch (ex) {
+            console.error(pe.render(ex))
+        } finally {
+            renewalRunning = false;
+            setTimeout(go, 1000);
+        }
     }
 }
 
@@ -148,8 +156,8 @@ async function main() {
     //console.log('Initial Spoof, spoofing...')
     //await spoof();
 
-    setInterval(async () => await go(), 1000);
     await go();
+    //setInterval(async () => await go(), 1000);
 }
 
 main();

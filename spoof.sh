@@ -6,4 +6,4 @@ echo "$addr"
 iwconfig wlan0 essid off
 ifconfig wlan0 down; ifconfig wlan0 hw ether $addr; sudo ifconfig wlan0 up
 iwconfig wlan0 essid on
-iwconfig wlan0 essid $1
+iwconfig wlan0 essid "$1"

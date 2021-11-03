@@ -2,6 +2,16 @@ const faker = require('faker');
 const fetch = require('node-fetch');
 
 class Osmozis {
+  async isConnected() {
+    try {
+      const resp = await fetch('http://detectportal.firefox.com/canonical.html', { redirect: 'manual' });
+      return resp.status == 200;
+      //return !await this.getAuthUrl().catch(e => "FAILED");
+    } catch (ignore) {
+      return false;
+    }
+  }
+
   async getAuthUrl() {
     const resp = await fetch('http://www.wifi69.com', { redirect: 'manual' })
     return resp.headers.get('location');

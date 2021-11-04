@@ -13,20 +13,27 @@ const ocr = new OCR();
 const osmozis = new Osmozis();
 const SSID = process.argv[2];
 const interface = process.argv[3] || (os.platform() === 'darwin' ? 'en0' : 'wlan0');
+const expiredTokens = [];
 
 const spoofCommands = process.env.SPOOF_CMD ?
     () => [process.env.SPOOF_CMD]
     : os.platform() === 'darwin' ? () => [
         `ifconfig ${interface} ether ${randomMacAddress()}`,
-        `ifconfig ${interface} down`,
-        `ifconfig ${interface} up`,
-        `sleep 5`,
+        `ipconfig set ${interface} DHCP`, // Renewing DHCP Lease
+        // `networksetup -setairportpower ${interface} off`,
+        // `ifconfig ${interface} down`,
+        // `sleep 5`,
+        // `ifconfig ${interface} up`,
+        // `networksetup -setairportpower ${interface} on`,
+        // `sleep 2`,
         `networksetup -setairportnetwork ${interface} "${SSID}"`
     ] : () => [
         `iwconfig ${interface} essid off`,
         `ifconfig ${interface} down`,
         `ifconfig ${interface} hw ether ${randomMacAddress()}`,
         `ifconfig ${interface} up`,
+        // TODO need to be tested
+        // `dhclient -r ${interface}`, // Renewing DHCP Lease
         `iwconfig ${interface} essid "${SSID}"`,
     ];
 
@@ -34,7 +41,6 @@ const spoofCommands = process.env.SPOOF_CMD ?
 const randomMacAddress = () => [~1, ~0, ~0, ~0, ~0, ~0].map(i => (Math.floor(Math.random() * 255) & i).toString(16).padStart(2, '0')).join(":");
 
 let connected = false;
-let renewalRunning = false;
 if (!process.env.SPOOF_CMD && process.getuid() !== 0) {
     console.log('must be ran as root (required for spoof)');
     return;
@@ -85,6 +91,11 @@ const giveMeWifi = async () => {
             console.log('Init token');
             await osmozis.init();
 
+            if(expiredTokens.indexOf(osmozis.token) >= 0) {
+                console.log("need new token, wait next round");
+                return;
+            }
+
             // grab current color
             const targetColor = await osmozis.getTargetColor();
             console.log('Captcha color:', targetColor);
@@ -108,6 +119,7 @@ const giveMeWifi = async () => {
             // trial expired. mac spoof needed
             if (statusCode === -102) {
                 console.log('Spoof required, spoofing...')
+                expiredTokens.push(osmozis.token);
                 await spoof();
             }
 
@@ -125,26 +137,21 @@ const giveMeWifi = async () => {
 };
 
 const go = async () => {
-    if (!renewalRunning) {
-        renewalRunning = true;
-
-        try {
-            if (await osmozis.isConnected()) {
-                if (!connected) console.log("Already connected");
-                process.stdout.write(".");
-                connected = true;
-                return;
-            }
-
-            console.log('Block detected. Attempting renewal.')
-            connected = false;
-            await giveMeWifi();
-        } catch (ex) {
-            console.error(pe.render(ex))
-        } finally {
-            renewalRunning = false;
-            setTimeout(go, 1000);
+    try {
+        if (await osmozis.isConnected()) {
+            if (!connected) console.log("Already connected");
+            process.stdout.write(".");
+            connected = true;
+            return;
         }
+
+        console.log('Block detected. Attempting renewal.')
+        connected = false;
+        await giveMeWifi();
+    } catch (ex) {
+        console.error(pe.render(ex))
+    } finally {
+        setTimeout(go, 1000);
     }
 }
 

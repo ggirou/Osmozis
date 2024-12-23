@@ -4,3 +4,5 @@ current*.png
 lat.traineddata
 .idea/
 .tmp/
+*.har
+notes.txt
